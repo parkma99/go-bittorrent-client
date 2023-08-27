@@ -12,8 +12,10 @@ func TestString(t *testing.T) {
 	buf := new(bytes.Buffer)
 	wLen := EncodeString(buf, val)
 	assert.Equal(t, 5, wLen)
-	str, _ := DecodeString(buf)
+	expected := buf.Bytes()
+	str, raw, _ := DecodeString(buf)
 	assert.Equal(t, val, str)
+	assert.Equal(t, expected, raw)
 
 	val = ""
 	for i := 0; i < 20; i++ {
@@ -22,7 +24,7 @@ func TestString(t *testing.T) {
 	buf.Reset()
 	wLen = EncodeString(buf, val)
 	assert.Equal(t, 23, wLen)
-	str, _ = DecodeString(buf)
+	str, _, _ = DecodeString(buf)
 	assert.Equal(t, val, str)
 }
 
@@ -31,22 +33,28 @@ func TestInt(t *testing.T) {
 	buf := new(bytes.Buffer)
 	wLen := EncodeInt(buf, val)
 	assert.Equal(t, 5, wLen)
-	iv, _ := DecodeInt(buf)
+	expected := buf.Bytes()
+	iv, raw, _ := DecodeInt(buf)
 	assert.Equal(t, val, iv)
+	assert.Equal(t, expected, raw)
 
 	val = 0
 	buf.Reset()
 	wLen = EncodeInt(buf, val)
+	expected = buf.Bytes()
 	assert.Equal(t, 3, wLen)
-	iv, _ = DecodeInt(buf)
+	iv, raw, _ = DecodeInt(buf)
 	assert.Equal(t, val, iv)
+	assert.Equal(t, expected, raw)
 
 	val = -99
 	buf.Reset()
 	wLen = EncodeInt(buf, val)
+	expected = buf.Bytes()
 	assert.Equal(t, 5, wLen)
-	iv, _ = DecodeInt(buf)
+	iv, raw, _ = DecodeInt(buf)
 	assert.Equal(t, val, iv)
+	assert.Equal(t, expected, raw)
 }
 
 func TestBencode(t *testing.T) {
@@ -61,6 +69,7 @@ func TestBencode(t *testing.T) {
 			input: &BObject{
 				type_: BSTR,
 				val_:  "",
+				raw_:  []byte{},
 			},
 			wantError: nil,
 			wantLen:   2, // "0:"
@@ -147,9 +156,9 @@ func TestDecodeString(t *testing.T) {
 	var o *BObject
 	in := "3:abc"
 	buf := bytes.NewBufferString(in)
-	o, _ = Bdecode(buf)
+	o, raw, _ := Bdecode(buf)
 	objAssertStr(t, "abc", o)
-
+	assert.Equal(t, []byte(in), raw)
 	out := bytes.NewBufferString("")
 	assert.Equal(t, len(in), o.Bencode(out))
 	assert.Equal(t, in, out.String())
@@ -159,9 +168,9 @@ func TestDecodeInt(t *testing.T) {
 	var o *BObject
 	in := "i123e"
 	buf := bytes.NewBufferString(in)
-	o, _ = Bdecode(buf)
+	o, raw, _ := Bdecode(buf)
 	objAssertInt(t, 123, o)
-
+	assert.Equal(t, []byte(in), raw)
 	out := bytes.NewBufferString("")
 	assert.Equal(t, len(in), o.Bencode(out))
 	assert.Equal(t, in, out.String())
@@ -172,8 +181,9 @@ func TestDecodeList(t *testing.T) {
 	var list []*BObject
 	in := "li123e6:archeri789ee"
 	buf := bytes.NewBufferString(in)
-	o, _ = Bdecode(buf)
+	o, raw, _ := Bdecode(buf)
 	assert.Equal(t, BLIST, o.type_)
+	assert.Equal(t, []byte(in), raw)
 	list, err := o.List()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, 3, len(list))
@@ -191,8 +201,9 @@ func TestDecodeMap(t *testing.T) {
 	var dict map[string]*BObject
 	in := "d4:name6:archer3:agei29ee"
 	buf := bytes.NewBufferString(in)
-	o, _ = Bdecode(buf)
+	o, raw, _ := Bdecode(buf)
 	assert.Equal(t, BDICT, o.type_)
+	assert.Equal(t, []byte(in), raw)
 	dict, err := o.Dict()
 	assert.Equal(t, nil, err)
 	objAssertStr(t, "archer", dict["name"])
@@ -207,8 +218,9 @@ func TestDecodeComMap(t *testing.T) {
 	var dict map[string]*BObject
 	in := "d4:userd4:name6:archer3:agei29ee5:valueli80ei85ei90eee"
 	buf := bytes.NewBufferString(in)
-	o, _ = Bdecode(buf)
+	o, raw, _ := Bdecode(buf)
 	assert.Equal(t, BDICT, o.type_)
+	assert.Equal(t, []byte(in), raw)
 	dict, err := o.Dict()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, BDICT, dict["user"].type_)

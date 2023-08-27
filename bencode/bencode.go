@@ -20,6 +20,7 @@ type BValue interface{}
 type BObject struct {
 	type_ BType
 	val_  BValue
+	raw_  []byte
 }
 
 func (o *BObject) Int() (int, error) {
@@ -48,6 +49,10 @@ func (o *BObject) Dict() (map[string]*BObject, error) {
 		return nil, errors.New("expect Dict")
 	}
 	return o.val_.(map[string]*BObject), nil
+}
+
+func (o *BObject) Raw() []byte {
+	return o.raw_
 }
 
 func (o *BObject) Bencode(w io.Writer) int {
@@ -85,7 +90,7 @@ func (o *BObject) Bencode(w io.Writer) int {
 	return wLen
 }
 
-func Bdecode(r io.Reader) (*BObject, error) {
+func Bdecode(r io.Reader) (*BObject, []byte, error) {
 	br, ok := r.(*bufio.Reader)
 	if !ok {
 		br = bufio.NewReader(r)
@@ -93,87 +98,104 @@ func Bdecode(r io.Reader) (*BObject, error) {
 
 	b, err := br.Peek(1)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var ret BObject
+	raw_ := make([]byte, 0)
 	switch {
 	case b[0] == 'i':
 		// parse int
-		val, err := DecodeInt(br)
+		val, raw, err := DecodeInt(br)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ret.type_ = BINT
 		ret.val_ = val
+		ret.raw_ = append(raw_, raw...)
+
 	case b[0] >= '0' && b[0] <= '9':
 		// parse string
-		val, err := DecodeString(br)
+		val, raw, err := DecodeString(br)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ret.type_ = BSTR
 		ret.val_ = val
+		ret.raw_ = append(raw_, raw...)
 	case b[0] == 'l':
 		// parse list
-		br.ReadByte()
+		b, _ := br.ReadByte()
+		raw_ = append(raw_, b)
 		var list []*BObject
 		for {
 			if p, _ := br.Peek(1); p[0] == 'e' {
-				br.ReadByte()
+				b, _ = br.ReadByte()
+				raw_ = append(raw_, b)
 				break
 			}
-			elem, err := Bdecode(br)
+			elem, raw, err := Bdecode(br)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
+			raw_ = append(raw_, raw...)
 			list = append(list, elem)
 		}
 		ret.type_ = BLIST
 		ret.val_ = list
+		ret.raw_ = raw_
 	case b[0] == 'd':
 		// parse map
-		br.ReadByte()
+		b, _ := br.ReadByte()
+		raw_ = append(raw_, b)
 		dict := make(map[string]*BObject)
 		for {
 			if p, _ := br.Peek(1); p[0] == 'e' {
-				br.ReadByte()
+				b, _ = br.ReadByte()
+				raw_ = append(raw_, b)
 				break
 			}
-			key, err := DecodeString(br)
+			key, raw, err := DecodeString(br)
+			raw_ = append(raw_, raw...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			val, err := Bdecode(br)
+			val, raw, err := Bdecode(br)
+			raw_ = append(raw_, raw...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			dict[key] = val
 		}
 		ret.type_ = BDICT
 		ret.val_ = dict
+		ret.raw_ = raw_
 	default:
-		return nil, errors.New("expect num")
+		return nil, nil, errors.New("expect num")
 	}
-	return &ret, nil
+	return &ret, ret.raw_, nil
 }
 
-func readDecimal(r *bufio.Reader) (val int, len int) {
+func readDecimal(r *bufio.Reader) (val int, raw []byte, len int) {
 	sign := 1
 	b, _ := r.ReadByte()
+	raw = append(raw, b)
 	len++
 	if b == '-' {
 		sign = -1
 		b, _ = r.ReadByte()
+		raw = append(raw, b)
 		len++
 	}
 	for {
 		if !(b >= '0' && b <= '9') {
 			r.UnreadByte()
 			len--
-			return sign * val, len
+			raw = raw[:len]
+			return sign * val, raw, len
 		}
 		val = val*10 + int(b-'0')
 		b, _ = r.ReadByte()
+		raw = append(raw, b)
 		len++
 	}
 }
@@ -227,19 +249,23 @@ func EncodeInt(w io.Writer, val int) int {
 	return wLen
 }
 
-func DecodeInt(r io.Reader) (val int, err error) {
+func DecodeInt(r io.Reader) (val int, raw []byte, err error) {
 	br, ok := r.(*bufio.Reader)
 	if !ok {
 		br = bufio.NewReader(r)
 	}
 	b, _ := br.ReadByte()
+	raw = append(raw, b)
 	if b != 'i' {
-		return val, errors.New("expect num")
+		return val, raw, errors.New("expect num")
 	}
-	val, _ = readDecimal(br)
+	var raw_ []byte
+	val, raw_, _ = readDecimal(br)
+	raw = append(raw, raw_...)
 	b, err = br.ReadByte()
+	raw = append(raw, b)
 	if b != 'e' {
-		return val, errors.New("expect num")
+		return val, raw, errors.New("expect num")
 	}
 	return
 }
@@ -260,21 +286,24 @@ func EncodeString(w io.Writer, val string) int {
 	return wLen
 }
 
-func DecodeString(r io.Reader) (val string, err error) {
+func DecodeString(r io.Reader) (val string, raw []byte, e error) {
 	br, ok := r.(*bufio.Reader)
 	if !ok {
 		br = bufio.NewReader(r)
 	}
-	num, len := readDecimal(br)
+	num, raw_, len := readDecimal(br)
+	raw = append(raw, raw_...)
 	if len == 0 {
-		return val, errors.New("expect num")
+		return val, raw_, errors.New("expect num")
 	}
 	b, _ := br.ReadByte()
+	raw = append(raw, b)
 	if b != ':' {
-		return val, errors.New("expect num")
+		return val, raw, errors.New("expect num")
 	}
 	buf := make([]byte, num)
-	_, err = io.ReadAtLeast(br, buf, num)
+	_, e = io.ReadAtLeast(br, buf, num)
+	raw = append(raw, buf...)
 	val = string(buf)
 	return
 }

@@ -45,7 +45,8 @@ func TestMarshalBasic(t *testing.T) {
 func TestUnmarshalList(t *testing.T) {
 	str := "li85ei90ei95ee"
 	l := &[]int{}
-	Unmarshal(bytes.NewBufferString(str), l)
+	o, _, _ := Bdecode(bytes.NewBufferString(str))
+	Unmarshal(o, l)
 	assert.Equal(t, []int{85, 90, 95}, *l)
 
 	buf := new(bytes.Buffer)
@@ -57,7 +58,8 @@ func TestUnmarshalList(t *testing.T) {
 func TestUnmarshalUser(t *testing.T) {
 	str := "d4:name6:archer3:agei29ee"
 	u := &User{}
-	Unmarshal(bytes.NewBufferString(str), u)
+	o, _, _ := Bdecode(bytes.NewBufferString(str))
+	Unmarshal(o, u)
 	assert.Equal(t, "archer", u.Name)
 	assert.Equal(t, 29, u.Age)
 
@@ -70,7 +72,8 @@ func TestUnmarshalUser(t *testing.T) {
 func TestUnmarshalRole(t *testing.T) {
 	str := "d2:idi1e4:userd4:name6:archer3:agei29eee"
 	r := &Role{}
-	Unmarshal(bytes.NewBufferString(str), r)
+	o, _, _ := Bdecode(bytes.NewBufferString(str))
+	Unmarshal(o, r)
 	assert.Equal(t, 1, r.Id)
 	assert.Equal(t, "archer", r.Name)
 	assert.Equal(t, 29, r.Age)
@@ -84,7 +87,8 @@ func TestUnmarshalRole(t *testing.T) {
 func TestUnmarshalScore(t *testing.T) {
 	str := "d4:userd4:name6:archer3:agei29ee5:valueli80ei85ei90eee"
 	s := &Score{}
-	Unmarshal(bytes.NewBufferString(str), s)
+	o, _, _ := Bdecode(bytes.NewBufferString(str))
+	Unmarshal(o, s)
 	assert.Equal(t, "archer", s.Name)
 	assert.Equal(t, 29, s.Age)
 	assert.Equal(t, []int{80, 85, 90}, s.Value)
@@ -98,7 +102,8 @@ func TestUnmarshalScore(t *testing.T) {
 func TestUnmarshalTeam(t *testing.T) {
 	str := "d4:name3:ace4:sizei2e6:memberld4:name6:archer3:agei29eed4:name5:nancy3:agei31eeee"
 	team := &Team{}
-	Unmarshal(bytes.NewBufferString(str), team)
+	o, _, _ := Bdecode(bytes.NewBufferString(str))
+	Unmarshal(o, team)
 	assert.Equal(t, "ace", team.Name)
 	assert.Equal(t, 2, team.Size)
 

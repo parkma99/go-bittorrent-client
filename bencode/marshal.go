@@ -7,11 +7,7 @@ import (
 	"strings"
 )
 
-func Unmarshal(r io.Reader, s interface{}) error {
-	o, err := Bdecode(r)
-	if err != nil {
-		return err
-	}
+func Unmarshal(o *BObject, s interface{}) error {
 	p := reflect.ValueOf(s)
 	if p.Kind() != reflect.Ptr {
 		return errors.New("dest must be a pointer")
@@ -21,13 +17,13 @@ func Unmarshal(r io.Reader, s interface{}) error {
 		list, _ := o.List()
 		l := reflect.MakeSlice(p.Elem().Type(), len(list), len(list))
 		p.Elem().Set(l)
-		err = unmarshalList(p, list)
+		err := unmarshalList(p, list)
 		if err != nil {
 			return err
 		}
 	case BDICT:
 		dict, _ := o.Dict()
-		err = unmarshalDict(p, dict)
+		err := unmarshalDict(p, dict)
 		if err != nil {
 			return err
 		}

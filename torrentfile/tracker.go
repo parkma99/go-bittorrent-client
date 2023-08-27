@@ -47,7 +47,11 @@ func (t *TorrentFile) requestPeers(peerID [20]byte, port uint16) ([]peers.Peer, 
 	defer resp.Body.Close()
 
 	trackerResp := bencodeTrackerResp{}
-	err = bencode.Unmarshal(resp.Body, &trackerResp)
+	o, _, err := bencode.Bdecode(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = bencode.Unmarshal(o, &trackerResp)
 	if err != nil {
 		return nil, err
 	}
